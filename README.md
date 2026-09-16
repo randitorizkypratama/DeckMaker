@@ -2,11 +2,11 @@
 
 **Explore cards. Build smarter decks.**
 
-DuelDex is a full-stack Yu-Gi-Oh! card explorer and smart deck builder. Browse and filter thousands of cards, save per-user favorites, build decks by hand, or pick a single key card and let DuelDex generate a complete, format-legal deck around it — with an explanation for every card it recommends. All persistence is SQLite (`users`, `decks`, `favorites`) with JWT auth.
+DuelDex is a full-stack Yu-Gi-Oh! card explorer and smart deck builder. Browse and filter thousands of cards, save per-user favorites, build decks by hand, or pick a single key card and let DuelDex generate a complete, format-legal deck around it — with synergy scoring, archetype detection, and real TCG banlist enforcement. All persistence is SQLite (`users`, `decks`, `favorites`) with JWT auth.
 
 The differentiator is the last part:
 
-> Select a card → DuelDex understands its archetype and relationships → DuelDex recommends a deck around it.
+> Select a card → DuelDex understands its archetype and relationships → DuelDex recommends a deck around it with synergy explanations.
 
 This is a card explorer and deck builder. It is deliberately **not** a duel simulator — there is no gameplay, turn system, or effect resolution engine.
 
@@ -61,7 +61,9 @@ This is a card explorer and deck builder. It is deliberately **not** a duel simu
 
 **Deck building**
 - Manual construction with quantity controls (+/-), automatic Main/Extra/Side placement per format (`sectionForCard`)
-- **Live Deck Stats** + **analysis**: `main/extra/side` counts, `monster/spell/trap` breakdown, `levelCurve`, `ATK histogram (0-1000/1000-2000/2000-3000/3000+)`, `archetype breakdown`, `avgLevel/avgAtk` (`domain/deck/deck-rules.ts:240` + `DeckStats.vue`)
+- **Editable deck name** with hover/focus border effects
+- **Live Deck Stats** + **analysis**: `main/extra/side` counts, `monster/spell/trap` breakdown (main deck only), `levelCurve`, `ATK histogram (0-1000/1000-2000/2000-3000/3000+)`, `archetype breakdown`, `avgLevel/avgAtk` (`domain/deck/deck-rules.ts:240` + `DeckStats.vue`)
+- **DeckSection.vue** displays Monster/Spell/Trap breakdown under Main Deck title
 - **Real banlist validation** (`Forbidden 0 / Limited 1 / Semi-Limited 2`) + copy/section/size checks (`domain/deck/deck-rules.ts:197`)
 - Rename, clear, save, share, **visibility toggle** (`isPublic`), **edit existing deck** via `?editId=` (load `GET /api/decks/:id` + `loadFromDeck`)
 - **Limit 5 decks per user** (`DeckService.ts:45` `enforceDeckLimit` via `countByOwner`) — create/generate/clone `422` when full, edit/delete still allowed
@@ -70,12 +72,33 @@ This is a card explorer and deck builder. It is deliberately **not** a duel simu
 - Pick a key card, get a complete legal deck (40 main + 15 extra for Yu-Gi-Oh!, 40 main for Rush)
 - Rule-based synergy scoring with human-readable reasons, filtered to exclude `Forbidden` cards and respect `Limited/Semi` copy caps (`deck-composer.ts:31` `banlistMax`)
 - Format-specific composition (not one algorithm with a different label)
+- **Combo pair detection** (30+ pairs), **effect keyword parsing** (15 keywords), **archetype awareness** (50+ archetypes mapped to aggro/control/combo/stun)
+- **Side deck auto-generation**: board breakers, anti-monster/spell, going first/second staples — tracks `sideTotal` properly
+- **Extra deck optimization**: only adds cards with synergy score 40+ (not force-filled to 15)
+- **Divine-Beast/Creator God limit**: max 1 copy per card enforced in both `banlistMax()` and `validateDeck()` — code `DIVINE_BEAST_LIMIT`
+- **Mana curve optimization** with archetype-aware composition ratios
+- **Deck no longer auto-saves** after generation — user explicitly saves/updates with "Save Deck" vs "Update Deck"
 - Regenerate on demand
 
 **Deck sharing & My Decks**
 - Short, opaque public URLs (`/deck/ab3f9k2xqp`), `POST /:id/share` returns canonical `PUBLIC_WEB_URL`
 - `POST /:id/clone` (counts toward limit), `DELETE /:id`
 - **My Decks** (`/decks`): requires auth, `GET /api/decks?q=&sort=name/updated&order=asc/desc&page=&pageSize=` paginated (`{items, pagination}`), search, sort, pagination, `Public/Private` toggle, `Edit` -> `?editId=`
+
+**Admin panel**
+- Tabs: Users / Decks / Banlist / Stats
+- **Users tab**: table with avatar (falls back to initials), search, role/status/format filters, edit user modal, ban/promote/delete actions
+- **Decks tab**: search by deck name/owner, delete with confirmation modal
+- **Banlist tab**: read-only official TCG banlist with card preview modal (image, stats, banlist status)
+- **Stats tab**: user/deck/favorite counts
+
+**Meta analytics**
+- `GET /api/meta/overview` returns deck/card popularity across all public decks
+- Overview stats: total decks, unique cards, total uses, avg deck size
+- Format breakdown, archetype usage breakdown
+- Top 20 most popular cards with deck count + progress bars
+- Top decks by popularity with links to deck detail
+- Card images loaded via `CardRepository.findByIds` (not DB table)
 
 ---
 
@@ -93,6 +116,8 @@ This is a card explorer and deck builder. It is deliberately **not** a duel simu
 | My Decks (search/pagination) | `docs/screenshots/my-decks.png` |
 | Profile (avatar WebP) | `docs/screenshots/profile.png` |
 | Shared deck | `docs/screenshots/shared-deck.png` |
+| Admin panel (users/decks/banlist) | `docs/screenshots/admin.png` |
+| Meta analytics | `docs/screenshots/meta.png` |
 
 ---
 
@@ -141,14 +166,16 @@ Dependency inversion: domain declares `CardRepository`, `DeckRepository`, `Favor
 
 ```mermaid
 flowchart TD
-    Key["Selected key card"] --> Arch["Detect archetype"]
-    Arch --> Gather["Gather candidates<br/>archetype members, text references, staples<br/>filtered Forbidden"]
-    Gather --> Score["Score synergy<br/>weighted rules + reasons"]
+    Key["Selected key card"] --> Arch["Detect archetype + classify (aggro/combo/control/stun)"]
+    Arch --> Gather["Gather candidates<br/>archetype members, combo pairs, text references, staples<br/>filtered Forbidden, Divine-Beast limit"]
+    Gather --> Score["Score synergy<br/>combo pairs, effect keywords, archetype awareness, weighted rules + reasons"]
     Score --> Sort["Sort by score"]
     Sort --> Rules["Apply format rules<br/>size, copies, banlistMax, sections"]
-    Rules --> Compose["Compose deck<br/>hit composition targets"]
-    Compose --> Validate["Validate against format + banlist"]
-    Validate --> Persist[("Persist + return")]
+    Rules --> Compose["Compose deck<br/>archetype-aware M/S/T ratios, mana curve, combo pairs"]
+    Compose --> Side["Generate side deck<br/>board breakers, anti-monster/spell, going first/second"]
+    Side --> Extra["Fill extra deck<br/>only cards with synergy 40+"]
+    Extra --> Validate["Validate against format + banlist"]
+    Validate --> Return["Return DeckDetail + scores (no auto-save)"]
 ```
 
 ---
@@ -162,7 +189,7 @@ dueldex/
 │   │   └── app/
 │   │       ├── components/
 │   │       │   ├── cards/            # CardGrid, CardItem, CardFilters, CardDetail (banlist), ...
-│   │       │   ├── deck/             # DeckHeader, DeckSection, DeckStats (analysis), DeckGenerator, DeckRecommendation
+│   │       │   ├── deck/             # DeckHeader, DeckSection, DeckStats, DeckGenerator, DeckRecommendation, DeckCard
 │   │       │   ├── layout/           # AppHeader (avatar), AppFooter
 │   │       │   └── common/           # LoadingState, ErrorState, EmptyState, Pagination
 │   │       ├── composables/
@@ -170,18 +197,20 @@ dueldex/
 │   │       │   ├── useCards.ts       # search, filters (race/atk/def/sort), pagination
 │   │       │   ├── useFavorites.ts   # per-user favorites via /api/favorites
 │   │       │   ├── useAuth.ts        # JWT + profile + convertToWebP (5MB)
-│   │       │   ├── useDeck.ts        # builder, generation, sharing, 5-limit
+│   │       │   ├── useDeck.ts        # builder, generation, sharing, 5-limit, loadFromDeck(isGenerated)
 │   │       │   └── useDeckDraft.ts   # cross-route card queue
 │   │       ├── pages/
 │   │       │   ├── index.vue         # landing
 │   │       │   ├── login.vue / register.vue / profile.vue
 │   │       │   ├── cards/index.vue   # explorer (query sync)
-│   │       │   │   └── [id].vue      # card detail
+│   │       │   │   └── [id].vue      # card detail (back button: router.back())
 │   │       │   ├── favorites.vue
 │   │       │   ├── decks/index.vue   # My Decks (q/sort/page/isPublic)
+│   │       │   ├── admin.vue         # users/decks/banlist/stats tabs, card preview, user avatars
+│   │       │   ├── meta.vue          # meta analytics (deck/card popularity, archetype usage)
 │   │       │   └── deck/
-│   │       │       ├── new.vue       # builder + generator + ?editId=
-│   │       │       └── [id].vue      # shared deck (public)
+│   │       │       ├── new.vue       # builder + generator (editable name, no auto-save)
+│   │       │       └── [id].vue      # shared deck (back button: router.back())
 │   │       └── assets/css/main.css
 │   │
 │   └── api/                          # Bun + ElysiaJS backend
@@ -189,13 +218,15 @@ dueldex/
 │       │   ├── domain/               # pure business logic
 │       │   │   ├── card/ {CardRepository, FavoritesRepository}
 │       │   │   ├── user/ {User, UserRepository}
-│       │   │   ├── deck/ {DeckRepository, deck-rules (banlist), deck-composer (banlistMax), synergy-*}
+│       │   │   ├── deck/ {DeckRepository, deck-rules (banlist, Divine-Beast limit), deck-composer (banlistMax), synergy-config (combo pairs, effect keywords, archetype profiles), synergy-scoring (combo detection, archetype awareness)}
 │       │   │   └── errors.ts
 │       │   ├── application/
 │       │   │   ├── cards/CardService.ts
 │       │   │   ├── favorites/FavoritesService.ts
 │       │   │   ├── auth/AuthService.ts # register/login/me/refresh/updateProfile (WebP 5MB)
-│       │   │   └── decks/ {DeckService (5-limit, isPublic), DeckGeneratorService}
+│       │   │   ├── decks/ {DeckService (5-limit, isPublic), DeckGeneratorService (no auto-save, synergy 40+ threshold)}
+│       │   │   ├── meta/MetaService.ts # deck/card popularity, archetype resolution via CardRepository
+│       │   │   └── admin/AdminService.ts # users/decks/stats CRUD
 │       │   ├── infrastructure/
 │       │   │   ├── db/database.ts    # singleton + migrations (users, decks owner_id/is_public, favorites)
 │       │   │   ├── auth/jwt.ts       # HMAC-SHA256 sign/verify
@@ -203,7 +234,7 @@ dueldex/
 │       │   │   ├── repositories/ {SqliteUserRepository, SqliteDeckRepository, SqliteFavoritesRepository, InMemoryDeckRepository, deck-id}
 │       │   │   └── cache/TtlCache.ts
 │       │   ├── presentation/
-│       │   │   ├── routes/{cards,decks,favorites,auth}.ts
+│       │   │   ├── routes/{cards,decks,favorites,auth,meta,admin}.ts
 │       │   │   ├── middleware/auth.ts
 │       │   │   └── http/responses.ts
 │       │   ├── container.ts
@@ -221,6 +252,7 @@ dueldex/
 │
 ├── package.json                      # Bun workspaces
 ├── AGENTS.md
+├── DESCRIPTION.md                    # YAGNI description
 ├── render.yaml
 └── README.md
 ```
@@ -289,6 +321,9 @@ All weights live in `domain/deck/synergy-config.ts`:
 | Same race | +5 |
 | Easily summoned (Level ≤ 4) | +4 |
 | Generic utility (draw/search/removal) | +3 |
+| **Combo pair detected** | +15 |
+| **Effect keyword match** (e.g., "special summon", "destroy", "negate") | +10 |
+| **Archetype support role** | +12 |
 
 Each score carries reasons shown in UI:
 
@@ -301,7 +336,21 @@ Synergy Score: 122
 ...
 ```
 
-Copies scale with synergy (`≥70` at limit, `≥40` at 2, else 1) clamped by banlist (`Forbidden 0 / Limited 1 / Semi 2`). Composition targets shape monster/spell/trap spread.
+Copies scale with synergy (`≥70` at limit, `≥40` at 2, else 1) clamped by banlist (`Forbidden 0 / Limited 1 / Semi 2`). **Divine-Beast/Creator God cards** limited to 1 copy regardless of synergy. Composition targets shape monster/spell/trap spread using archetype-aware ratios (aggro/combo/control/stun profiles).
+
+### Side deck generation
+
+Side deck is auto-generated with 15 cards targeting the format's meta:
+
+- **Board breakers**: staple removal and disruption cards
+- **Anti-monster**: specific monster counters
+- **Anti-spell**: spell/trap removal and negation
+- **Going first**: setup and protection cards
+- **Going second**: board breaking and OTK enablers
+
+### Extra deck optimization
+
+Extra deck only adds cards with synergy score 40+ to the key card, rather than force-filling to 15 slots. This ensures every extra deck card has a reason to be there.
 
 ---
 
@@ -373,7 +422,25 @@ Query: `search`, `type`, `attribute`, `race`, `archetype`, `level`, `atk`, `def`
 | `DELETE` | `/api/decks/:id` | Delete (owner check) |
 | `POST` | `/api/decks/:id/share` | `{shareId, url}` via `PUBLIC_WEB_URL` |
 | `POST` | `/api/decks/:id/clone` | Clone (counts toward limit) `201` |
-| `POST` | `/api/decks/generate` | **Smart generation** `{format, keyCardId, name?}` -> `{deck: DeckDetail, scores: CardScore[]}` (Bearer sets `owner_id`, respects 5-limit + banlist) |
+| `POST` | `/api/decks/generate` | **Smart generation** `{format, keyCardId, name?}` -> `{deck: DeckDetail, scores: CardScore[]}` (no auto-save — returns deck for review) |
+
+### Meta
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/meta/overview` | `{totalDecks, uniqueCardsUsed, totalCardsUsed, avgDeckSize, formatBreakdown, archetypeBreakdown, topCards, topDecks}` |
+
+### Admin (Bearer required, `role: 'admin'`)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/admin/users` | List users with pagination + search |
+| `PUT` | `/api/admin/users/:id` | Update role/status `{role?, status?}` |
+| `DELETE` | `/api/admin/users/:id` | Delete user |
+| `GET` | `/api/admin/decks` | List decks with pagination + search |
+| `DELETE` | `/api/admin/decks/:id` | Delete deck |
+| `GET` | `/api/admin/stats` | `{totalUsers, totalDecks, totalFavorites}` |
+| `GET` | `/api/admin/banlist/official` | Read-only official TCG banlist |
 
 `DeckDetail` includes `stats {mainCount, extraCount, sideCount, monsterCount, spellCount, trapCount, levelCurve, atkHistogram, archetypeBreakdown, avgLevel, avgAtk}` + `isPublic`.
 
@@ -407,6 +474,7 @@ bun test           # backend suite (83 tests)
 bunx tsc --noEmit  # typecheck api individually (avoids nuxt volar bug)
 bun run typecheck  # typecheck api + web (web uses bunx tsc internally)
 bun run build      # production build of web
+bun run seed:admin # create admin user if not exists
 ```
 
 ---
@@ -449,8 +517,8 @@ Coverage is business-logic focused, offline via fakes (`InMemoryDeckRepository`,
 | --- | --- |
 | **Cards** | search, filtering (each facet + race/atk/def/sort), pagination, detail, filter metadata |
 | **Mapping** | snake_case → camelCase, banlist_info, malformed payloads, link markers, placeholder images |
-| **Deck rules** | placement, add/remove, quantity, copy limits, banlist (Forbidden/Limited/Semi), both formats' size/section |
-| **Generator** | key card included, archetype prioritized, size, copy limits + banlistMax, extra handling, Yu-Gi-Oh vs Rush divergence, deterministic scoring, 5-limit, forbidden filter |
+| **Deck rules** | placement, add/remove, quantity, copy limits, banlist (Forbidden/Limited/Semi), Divine-Beast limit, both formats' size/section, M/S/T counts (main deck only) |
+| **Generator** | key card included, archetype prioritized, combo pairs, effect keywords, archetype-aware composition, side deck generation, extra deck threshold (40+), size, copy limits + banlistMax, extra handling, Yu-Gi-Oh vs Rush divergence, deterministic scoring, 5-limit, forbidden filter |
 | **Sharing** | share id, retrieval, uniqueness, opacity, invalid id |
 | **Auth/Profile** | register/login/me/refresh/updateProfile (avatar WebP 5MB), JWT HMAC, 5-limit enforcement |
 | **Security** | deck name sanitization, invalid decks, unknown cards |
@@ -486,6 +554,8 @@ Coverage is business-logic focused, offline via fakes (`InMemoryDeckRepository`,
 - **Avatar storage** is base64 WebP TEXT in `users.avatar` (5 MB client + server validated via `AuthService.ts:42`). For scale, move to object storage (S3/R2) and store URL.
 - **My Decks `isPublic`** defaults `true`; `GET /api/decks/:id` is public. Private decks are still fetchable by id if known — add auth check on `GET /:id` if stricter privacy needed.
 - **Search `atk/def` exact** only — range queries are not delegated to upstream (would need local post-filter + full fetch).
+- **Meta analytics** queries all public decks on each request — no caching layer yet. For scale, add Redis or materialized view.
+- **Side deck generation** uses hardcoded staple lists — not meta-adaptive based on current format.
 
 ---
 
@@ -494,12 +564,12 @@ Coverage is business-logic focused, offline via fakes (`InMemoryDeckRepository`,
 ```
 Future
 ├── Deck import / export (.ydk) + copy as ydk/QR
-├── Competitive deck analysis (meta decks)
 ├── Duel simulator / CPU opponent / Online PvP
+├── Deck versioning / history
 └── Postgres DeckRepository (swap in container.ts)
 ```
 
-Implemented from previous roadmap: `User authentication`, `Cloud deck storage (SQLite per-user)`, `Deck statistics & analysis`, `Banlist validation` — see `AGENTS.md` for agent notes.
+Implemented from previous roadmap: `User authentication`, `Cloud deck storage (SQLite per-user)`, `Deck statistics & analysis`, `Banlist validation`, `Archetype-aware deck generation`, `Side deck auto-generation`, `Admin panel`, `Meta analytics` — see `AGENTS.md` for agent notes.
 
 ---
 
