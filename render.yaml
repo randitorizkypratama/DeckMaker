@@ -1,0 +1,64 @@
+# DuelDex - Render deployment
+#
+# Two independent services from one monorepo. Both build from the repo root so
+# Bun can resolve the workspace packages (packages/shared), then run from their
+# own app directory.
+#
+# NOTE: the free plan has an ephemeral filesystem, so the SQLite database is
+# reset on every deploy and restart. Attach a disk (or move to Postgres) if
+# shared decks must persist - see README "Deployment".
+
+services:
+  # ---------------------------------------------------------------- API
+  - type: web
+    name: dueldex-api
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: |
+      curl -fsSL https://bun.sh/install | bash
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun install
+    startCommand: |
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun run apps/api/src/index.ts
+    healthCheckPath: /health
+    envVars:
+      - key: API_PORT
+        value: 10000
+      - key: YGOPRODECK_API_URL
+        value: https://db.ygoprodeck.com/api/v7
+      - key: CACHE_TTL_MS
+        value: 3600000
+      - key: UPSTREAM_TIMEOUT_MS
+        value: 12000
+      - key: DATABASE_PATH
+        value: /tmp/dueldex.sqlite
+      # Set to the deployed web URL once it is known.
+      - key: CORS_ORIGIN
+        sync: false
+      - key: PUBLIC_WEB_URL
+        sync: false
+
+  # ---------------------------------------------------------------- Web
+  - type: web
+    name: dueldex-web
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: |
+      curl -fsSL https://bun.sh/install | bash
+      export PATH="$HOME/.bun/bin:$PATH"
+      bun install
+      bun run --cwd apps/web build
+    startCommand: node apps/web/.output/server/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NITRO_PORT
+        value: 10000
+      # Set to the deployed API URL, e.g. https://dueldex-api.onrender.com
+      - key: NUXT_PUBLIC_API_BASE_URL
+        sync: false

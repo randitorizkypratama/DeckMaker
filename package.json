@@ -1,0 +1,24 @@
+{
+  "name": "dueldex",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:api": "bun run --cwd apps/api dev",
+    "dev:web": "bun run --cwd apps/web dev",
+    "build": "bun run --cwd apps/web build",
+    "test": "bun test",
+    "typecheck": "bun run --cwd apps/api typecheck && bun run --cwd apps/web typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/bun": "^1.1.14"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules
+dist
+.output
+.nuxt
+.nitro
+.cache
+*.log
+.env
+.env.local
+.DS_Store
+data/*.sqlite
+data/*.sqlite-journal
+**/data/*.sqlite
+**/data/*.sqlite-*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
