@@ -269,7 +269,7 @@ dueldex/
 **Backend**
 - [Bun](https://bun.sh/) 1.4 runtime and test runner
 - [ElysiaJS](https://elysiajs.com/) 1.4 with `t` schema validation
-- `bun:sqlite` for persistence (WAL, FK ON, inline migrations)
+- [Turso](https://turso.tech/) (libSQL) for persistent serverless SQLite — with local `bun:sqlite` fallback for development
 - TypeScript in strict mode
 
 **Shared**
@@ -489,7 +489,9 @@ bun run seed:admin # create admin user if not exists
 | `YGOPRODECK_API_URL` | `https://db.ygoprodeck.com/api/v7` | Upstream |
 | `CORS_ORIGIN` | `http://localhost:3000` | Comma-separated allowed origins |
 | `PUBLIC_WEB_URL` | `http://localhost:3000` | Share link base |
-| `DATABASE_PATH` | `./data/dueldex.sqlite` | SQLite file |
+| `DATABASE_PATH` | `./data/dueldex.sqlite` | SQLite file (local dev fallback) |
+| `TURSO_DATABASE_URL` | _(empty)_ | Turso database URL — set to use Turso instead of local SQLite |
+| `TURSO_AUTH_TOKEN` | _(empty)_ | Turso auth token |
 | `JWT_SECRET` | `dev-secret-change-me` | HMAC secret (change in prod) |
 | `UPSTREAM_TIMEOUT_MS` | `12000` | Upstream timeout |
 | `CACHE_TTL_MS` | `3600000` | Card cache TTL |
@@ -531,19 +533,37 @@ Coverage is business-logic focused, offline via fakes (`InMemoryDeckRepository`,
 
 ---
 
-## Deployment (Render)
+## Deployment (Render + Turso)
 
-`render.yaml` defines two services from one repo.
+`render.yaml` defines two services from one repo. Uses [Turso](https://turso.tech/) for persistent serverless SQLite.
+
+### 1. Create a Turso database
+
+```bash
+curl -sSfL https://get.tur.so/install.sh | bash
+turso auth login
+turso db create dueldex
+turso db show dueldex --url          # → libsql://dueldex-<name>.turso.io
+turso db tokens create dueldex       # → auth token
+```
+
+### 2. Deploy to Render
 
 1. Push to GitHub.
 2. In Render, **New → Blueprint** → select repo (`render.yaml` auto-detected).
-3. Set cross-referencing vars once URLs known:
-   - `dueldex-api` → `CORS_ORIGIN` and `PUBLIC_WEB_URL` = web URL
-   - `dueldex-web` → `NUXT_PUBLIC_API_BASE_URL` = API URL
-   - `JWT_SECRET` = strong random string (both services if sharing)
-4. Deploy. Both install from repo root for workspace.
+3. Set env vars on `dueldex-api`:
+   - `TURSO_DATABASE_URL` = Turso URL from step 1
+   - `TURSO_AUTH_TOKEN` = Turso token from step 1
+   - `JWT_SECRET` = strong random string
+   - `CORS_ORIGIN` = deployed web URL (e.g. `https://dueldex-web.onrender.com`)
+   - `PUBLIC_WEB_URL` = deployed web URL
+4. Set env vars on `dueldex-web`:
+   - `NUXT_PUBLIC_API_BASE_URL` = deployed API URL (e.g. `https://dueldex-api.onrender.com`)
+5. Deploy.
 
-**Persistence warning:** Free plan filesystem is ephemeral, so `DATABASE_PATH` (`/tmp/dueldex.sqlite` in `render.yaml:36`) resets on deploy/restart — shared links break. Attach a Render disk and point `DATABASE_PATH` at it, or implement Postgres `DeckRepository` (behind interface, one file change).
+### 3. Local development
+
+Without `TURSO_DATABASE_URL` set, the API falls back to a local `bun:sqlite` file (`DATABASE_PATH`). No Turso account needed for local dev.
 
 ---
 
@@ -552,7 +572,6 @@ Coverage is business-logic focused, offline via fakes (`InMemoryDeckRepository`,
 - **Rush Duel card pool.** YGOPRODeck documents `format=Rush Duel` but endpoint currently returns no cards (verified 2026-09-03). Rush sources from Speed Duel (`infrastructure/ygoprodeck/format-pools.ts`) while keeping its own construction rules. Single constant to change when upstream restores.
 - **Card images are hot-linked** from YGOPRODeck. Mirror to your own storage/CDN for production.
 - **Avatar storage** is base64 WebP TEXT in `users.avatar` (5 MB client + server validated via `AuthService.ts:42`). For scale, move to object storage (S3/R2) and store URL.
-- **My Decks `isPublic`** defaults `true`; `GET /api/decks/:id` is public. Private decks are still fetchable by id if known — add auth check on `GET /:id` if stricter privacy needed.
 - **Search `atk/def` exact** only — range queries are not delegated to upstream (would need local post-filter + full fetch).
 - **Meta analytics** queries all public decks on each request — no caching layer yet. For scale, add Redis or materialized view.
 - **Side deck generation** uses hardcoded staple lists — not meta-adaptive based on current format.
@@ -565,11 +584,10 @@ Coverage is business-logic focused, offline via fakes (`InMemoryDeckRepository`,
 Future
 ├── Deck import / export (.ydk) + copy as ydk/QR
 ├── Duel simulator / CPU opponent / Online PvP
-├── Deck versioning / history
-└── Postgres DeckRepository (swap in container.ts)
+└── Deck versioning / history
 ```
 
-Implemented from previous roadmap: `User authentication`, `Cloud deck storage (SQLite per-user)`, `Deck statistics & analysis`, `Banlist validation`, `Archetype-aware deck generation`, `Side deck auto-generation`, `Admin panel`, `Meta analytics` — see `AGENTS.md` for agent notes.
+Implemented from previous roadmap: `User authentication`, `Cloud deck storage (Turso per-user)`, `Deck statistics & analysis`, `Banlist validation`, `Archetype-aware deck generation`, `Side deck auto-generation`, `Admin panel`, `Meta analytics`, `Turso integration`, `Mobile UI/UX improvements` — see `AGENTS.md` for agent notes.
 
 ---
 
