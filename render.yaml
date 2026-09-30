@@ -60,6 +60,7 @@ services:
       export NODE_OPTIONS="--max-old-space-size=400"
       bun install
       bun run --cwd apps/web build
+      ls -la apps/web/.output/server/
     startCommand: node apps/web/.output/server/index.mjs
     envVars:
       - key: NODE_VERSION
