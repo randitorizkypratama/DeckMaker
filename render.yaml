@@ -57,6 +57,7 @@ services:
     buildCommand: |
       curl -fsSL https://bun.sh/install | bash
       export PATH="$HOME/.bun/bin:$PATH"
+      export NODE_OPTIONS="--max-old-space-size=400"
       bun install
       bun run --cwd apps/web build
     startCommand: node apps/web/.output/server/index.mjs
