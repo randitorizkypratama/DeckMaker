@@ -9,7 +9,7 @@ export class SqliteFavoritesRepository implements FavoritesRepository {
   constructor(private readonly db: AnyDatabase) {}
 
   async list(owner: string): Promise<number[]> {
-    const rows = this.db
+    const rows = await this.db
       .query<{ card_id: number }>(
         'SELECT card_id FROM favorites WHERE user_id = $userId ORDER BY created_at DESC',
       )
@@ -18,7 +18,7 @@ export class SqliteFavoritesRepository implements FavoritesRepository {
   }
 
   async add(owner: string, cardId: number): Promise<void> {
-    this.db
+    await this.db
       .query(
         `INSERT INTO favorites (user_id, card_id, created_at)
          VALUES ($userId, $cardId, $createdAt)
@@ -28,12 +28,12 @@ export class SqliteFavoritesRepository implements FavoritesRepository {
   }
 
   async remove(owner: string, cardId: number): Promise<void> {
-    this.db
+    await this.db
       .query('DELETE FROM favorites WHERE user_id = $userId AND card_id = $cardId')
       .run({ $userId: owner, $cardId: cardId })
   }
 
   async clear(owner: string): Promise<void> {
-    this.db.query('DELETE FROM favorites WHERE user_id = $userId').run({ $userId: owner })
+    await this.db.query('DELETE FROM favorites WHERE user_id = $userId').run({ $userId: owner })
   }
 }

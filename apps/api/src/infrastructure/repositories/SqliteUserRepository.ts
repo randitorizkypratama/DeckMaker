@@ -22,28 +22,28 @@ export class SqliteUserRepository implements UserRepository {
   constructor(private readonly db: AnyDatabase) {}
 
   async findById(id: string): Promise<User | null> {
-    const row = this.db
+    const row = await this.db
       .query<UserRow>('SELECT * FROM users WHERE id = $id')
       .get({ $id: id })
     return row ? this.toUser(row) : null
   }
 
   async findByUsername(username: string): Promise<User | null> {
-    const row = this.db
+    const row = await this.db
       .query<UserRow>('SELECT * FROM users WHERE username = $username')
       .get({ $username: username })
     return row ? this.toUser(row) : null
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const row = this.db
+    const row = await this.db
       .query<UserRow>('SELECT * FROM users WHERE email = $email')
       .get({ $email: email })
     return row ? this.toUser(row) : null
   }
 
   async count(): Promise<number> {
-    const row = this.db.query<{ cnt: number }>('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }
+    const row = await this.db.query<{ cnt: number }>('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }
     return row.cnt
   }
 
@@ -60,16 +60,16 @@ export class SqliteUserRepository implements UserRepository {
       params.$limit = opts.pageSize
       params.$offset = (opts.page - 1) * opts.pageSize
     }
-    const rows = this.db.query<UserRow>(sql).all(params)
+    const rows = await this.db.query<UserRow>(sql).all(params)
     return rows.map(r => this.toUser(r))
   }
 
   async delete(id: string): Promise<void> {
-    this.db.query('DELETE FROM users WHERE id=$id').run({ $id: id })
+    await this.db.query('DELETE FROM users WHERE id=$id').run({ $id: id })
   }
 
   async create(user: User): Promise<User> {
-    this.db
+    await this.db
       .query(
         `INSERT INTO users (id, username, email, password_hash, display_name, age, gender, country, avatar, role, is_banned, created_at, updated_at)
          VALUES ($id, $username, $email, $passwordHash, $displayName, $age, $gender, $country, $avatar, $role, $isBanned, $createdAt, $updatedAt)`
@@ -93,7 +93,7 @@ export class SqliteUserRepository implements UserRepository {
   }
 
   async update(user: User): Promise<User> {
-    this.db
+    await this.db
       .query(
         `UPDATE users SET username=$username, email=$email, password_hash=$passwordHash, display_name=$displayName, age=$age, gender=$gender, country=$country, avatar=$avatar, role=$role, is_banned=$isBanned, updated_at=$updatedAt WHERE id=$id`
       )

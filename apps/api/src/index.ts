@@ -10,7 +10,7 @@ import { adminRoutes } from './presentation/routes/admin.ts'
 import { metaRoutes } from './presentation/routes/meta.ts'
 import { fail, mapError } from './presentation/http/responses.ts'
 
-const container = createContainer()
+const container = await createContainer()
 
 export const app = new Elysia()
   .use(

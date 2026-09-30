@@ -5,24 +5,24 @@ import { randomUUID } from 'node:crypto'
 import { LibSqlDatabase } from './libsql-adapter.ts'
 
 interface QueryLike<T> {
-  get(params?: Record<string, unknown>): T | null
-  all(params?: Record<string, unknown>): T[]
-  run(params?: Record<string, unknown>): { changes: number; lastInsertRowid: number | bigint }
+  get(params?: Record<string, unknown>): T | null | Promise<T | null>
+  all(params?: Record<string, unknown>): T[] | Promise<T[]>
+  run(params?: Record<string, unknown>): { changes: number; lastInsertRowid: number | bigint } | Promise<{ changes: number; lastInsertRowid: number | bigint }>
 }
 
 /**
  * Common interface satisfied by both BunSqliteWrapper and LibSqlDatabase.
- * Every repository and service types their `db` field as AnyDatabase.
+ * bun:sqlite methods return sync values; LibSqlDatabase returns Promises.
+ * All callers are async, so both work via await.
  */
 export interface AnyDatabase {
-  exec(sql: string): void
+  exec(sql: string): void | Promise<void>
   query<T>(sql: string): QueryLike<T>
   close(): void
 }
 
 /**
  * Thin adapter around bun:sqlite's Database so it conforms to AnyDatabase.
- * Only used for local dev and tests.
  */
 class BunSqliteWrapper implements AnyDatabase {
   constructor(private readonly raw: Database) {}
@@ -47,17 +47,17 @@ class BunSqliteWrapper implements AnyDatabase {
 
 let singleton: AnyDatabase | null = null
 
-export function getDatabase(
+export async function getDatabase(
   databasePath: string,
   tursoUrl?: string,
   tursoToken?: string,
-): AnyDatabase {
+): Promise<AnyDatabase> {
   if (singleton) return singleton
 
   if (tursoUrl) {
     const db = new LibSqlDatabase({ url: tursoUrl, authToken: tursoToken })
-    migrate(db)
-    seedAdmin(db)
+    await migrate(db)
+    await seedAdmin(db)
     singleton = db
     return db
   }
@@ -69,15 +69,14 @@ export function getDatabase(
   raw.exec('PRAGMA journal_mode = WAL;')
   raw.exec('PRAGMA foreign_keys = ON;')
   const db = new BunSqliteWrapper(raw)
-  migrate(db)
-  seedAdmin(db)
+  await migrate(db)
+  await seedAdmin(db)
   singleton = db
   return db
 }
 
 /**
  * Returns a raw bun:sqlite Database for tests (in-memory, fast, synchronous).
- * This is NOT wrapped — it goes directly to createTestDatabase callers.
  */
 export function createTestDatabase(): Database {
   const db = new Database(':memory:', { create: true })
@@ -94,8 +93,8 @@ export function resetDatabaseSingleton(): void {
   }
 }
 
-function migrate(db: AnyDatabase): void {
-  db.exec(`
+async function migrate(db: AnyDatabase): Promise<void> {
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
@@ -115,17 +114,17 @@ function migrate(db: AnyDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   `)
 
-  const userCols = db.query<{ name: string }>("SELECT name FROM pragma_table_info('users')").all()
+  const userCols = await db.query<{ name: string }>("SELECT name FROM pragma_table_info('users')").all()
   const has = (n: string) => userCols.some((c) => c.name === n)
-  if (!has('display_name')) db.exec(`ALTER TABLE users ADD COLUMN display_name TEXT;`)
-  if (!has('age')) db.exec(`ALTER TABLE users ADD COLUMN age INTEGER;`)
-  if (!has('gender')) db.exec(`ALTER TABLE users ADD COLUMN gender TEXT;`)
-  if (!has('country')) db.exec(`ALTER TABLE users ADD COLUMN country TEXT;`)
-  if (!has('avatar')) db.exec(`ALTER TABLE users ADD COLUMN avatar TEXT;`)
-  if (!has('role')) db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`)
-  if (!has('is_banned')) db.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`)
+  if (!has('display_name')) await db.exec(`ALTER TABLE users ADD COLUMN display_name TEXT;`)
+  if (!has('age')) await db.exec(`ALTER TABLE users ADD COLUMN age INTEGER;`)
+  if (!has('gender')) await db.exec(`ALTER TABLE users ADD COLUMN gender TEXT;`)
+  if (!has('country')) await db.exec(`ALTER TABLE users ADD COLUMN country TEXT;`)
+  if (!has('avatar')) await db.exec(`ALTER TABLE users ADD COLUMN avatar TEXT;`)
+  if (!has('role')) await db.exec(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';`)
+  if (!has('is_banned')) await db.exec(`ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0;`)
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS decks (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -137,20 +136,20 @@ function migrate(db: AnyDatabase): void {
     );
   `)
 
-  const deckCols = db.query<{ name: string }>("SELECT name FROM pragma_table_info('decks')").all()
+  const deckCols = await db.query<{ name: string }>("SELECT name FROM pragma_table_info('decks')").all()
   const hasOwnerId = deckCols.some((c) => c.name === 'owner_id')
   if (!hasOwnerId) {
-    db.exec(`ALTER TABLE decks ADD COLUMN owner_id TEXT REFERENCES users(id) ON DELETE SET NULL;`)
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_decks_owner ON decks(owner_id);`)
+    await db.exec(`ALTER TABLE decks ADD COLUMN owner_id TEXT REFERENCES users(id) ON DELETE SET NULL;`)
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_decks_owner ON decks(owner_id);`)
   } else {
-    db.exec(`CREATE INDEX IF NOT EXISTS idx_decks_owner ON decks(owner_id);`)
+    await db.exec(`CREATE INDEX IF NOT EXISTS idx_decks_owner ON decks(owner_id);`)
   }
   const hasIsPublic = deckCols.some((c) => c.name === 'is_public')
   if (!hasIsPublic) {
-    db.exec(`ALTER TABLE decks ADD COLUMN is_public INTEGER DEFAULT 1;`)
+    await db.exec(`ALTER TABLE decks ADD COLUMN is_public INTEGER DEFAULT 1;`)
   }
 
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS custom_banlist (
       card_id INTEGER PRIMARY KEY,
       status TEXT NOT NULL CHECK(status IN ('Forbidden','Limited','Semi-Limited')),
@@ -160,9 +159,9 @@ function migrate(db: AnyDatabase): void {
     );
   `)
 
-  const favTableExists = db.query<unknown>("SELECT name FROM sqlite_master WHERE type='table' AND name='favorites'").get()
+  const favTableExists = await db.query<unknown>("SELECT name FROM sqlite_master WHERE type='table' AND name='favorites'").get()
   if (!favTableExists) {
-    db.exec(`
+    await db.exec(`
       CREATE TABLE favorites (
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         card_id INTEGER NOT NULL,
@@ -172,11 +171,11 @@ function migrate(db: AnyDatabase): void {
       CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
     `)
   } else {
-    const favCols = db.query<{ name: string }>("SELECT name FROM pragma_table_info('favorites')").all()
+    const favCols = await db.query<{ name: string }>("SELECT name FROM pragma_table_info('favorites')").all()
     const hasUserId = favCols.some((c) => c.name === 'user_id')
     const hasOwner = favCols.some((c) => c.name === 'owner')
     if (!hasUserId && hasOwner) {
-      db.exec(`
+      await db.exec(`
         CREATE TABLE IF NOT EXISTS favorites_new (
           user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           card_id INTEGER NOT NULL,
@@ -184,13 +183,13 @@ function migrate(db: AnyDatabase): void {
           PRIMARY KEY (user_id, card_id)
         );
       `)
-      db.exec(`ALTER TABLE favorites RENAME TO favorites_legacy;`)
-      db.exec(`ALTER TABLE favorites_new RENAME TO favorites;`)
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);`)
+      await db.exec(`ALTER TABLE favorites RENAME TO favorites_legacy;`)
+      await db.exec(`ALTER TABLE favorites_new RENAME TO favorites;`)
+      await db.exec(`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);`)
     } else if (hasUserId) {
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);`)
+      await db.exec(`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);`)
     } else {
-      db.exec(`
+      await db.exec(`
         CREATE TABLE IF NOT EXISTS favorites (
           user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           card_id INTEGER NOT NULL,
@@ -202,15 +201,15 @@ function migrate(db: AnyDatabase): void {
   }
 }
 
-function seedAdmin(db: AnyDatabase): void {
-  const existing = db.query('SELECT 1 FROM users WHERE username = $username').get({ $username: 'admin' })
+async function seedAdmin(db: AnyDatabase): Promise<void> {
+  const existing = await db.query('SELECT 1 FROM users WHERE username = $username').get({ $username: 'admin' })
   if (existing) return
 
   const id = randomUUID().replace(/-/g, '').slice(0, 16)
   const now = new Date().toISOString()
   const passwordHash = Bun.password.hashSync('admin123', { algorithm: 'bcrypt', cost: 10 })
 
-  db.query(`
+  await db.query(`
     INSERT INTO users (id, username, email, password_hash, display_name, role, is_banned, created_at, updated_at)
     VALUES ($id, $username, $email, $passwordHash, $displayName, $role, $isBanned, $createdAt, $updatedAt)
   `).run({

@@ -3,16 +3,15 @@ import { createClient, type Client, type InArgs, type ResultSet } from '@libsql/
 type RowObject = Record<string, unknown>
 
 interface QueryLike<T> {
-  get(params?: Record<string, unknown>): T | null
-  all(params?: Record<string, unknown>): T[]
-  run(params?: Record<string, unknown>): { changes: number; lastInsertRowid: number | bigint }
+  get(params?: Record<string, unknown>): Promise<T | null>
+  all(params?: Record<string, unknown>): Promise<T[]>
+  run(params?: Record<string, unknown>): Promise<{ changes: number; lastInsertRowid: number | bigint }>
 }
 
 /**
- * Adapter that wraps @libsql/client to present the same API surface as
- * bun:sqlite's Database (query().get/all/run + exec). This lets every
- * repository, AdminService, and MetaService work unchanged — they never
- * import bun:sqlite directly.
+ * Adapter that wraps @libsql/client to present a similar API surface to
+ * bun:sqlite's Database (query().get/all/run + exec). All methods are async
+ * because Turso uses network I/O.
  */
 export class LibSqlDatabase {
   private readonly client: Client
@@ -25,27 +24,27 @@ export class LibSqlDatabase {
     })
   }
 
-  exec(sql: string): void {
+  async exec(sql: string): Promise<void> {
     const trimmed = sql.trim()
     if (trimmed.toUpperCase().startsWith('PRAGMA')) {
-      this.client.execute(trimmed).catch(() => {})
+      await this.client.execute(trimmed)
       return
     }
-    this.client.executeMultiple(sql).catch(() => {})
+    await this.client.executeMultiple(sql)
   }
 
   query<T = RowObject>(sql: string): QueryLike<T> {
     return {
-      get: (params?: Record<string, unknown>): T | null => {
-        const result = this.execSync(sql, params)
+      get: async (params?: Record<string, unknown>): Promise<T | null> => {
+        const result = await this.execAsync(sql, params)
         return result.rows.length > 0 ? this.rowToObject<T>(result.rows[0], result.columns) : null
       },
-      all: (params?: Record<string, unknown>): T[] => {
-        const result = this.execSync(sql, params)
+      all: async (params?: Record<string, unknown>): Promise<T[]> => {
+        const result = await this.execAsync(sql, params)
         return result.rows.map((r) => this.rowToObject<T>(r, result.columns))
       },
-      run: (params?: Record<string, unknown>): { changes: number; lastInsertRowid: number | bigint } => {
-        const result = this.execSync(sql, params)
+      run: async (params?: Record<string, unknown>): Promise<{ changes: number; lastInsertRowid: number | bigint }> => {
+        const result = await this.execAsync(sql, params)
         return { changes: result.rowsAffected, lastInsertRowid: result.lastInsertRowid ?? 0 }
       },
     }
@@ -55,23 +54,9 @@ export class LibSqlDatabase {
     this.client.close()
   }
 
-  private execSync(sql: string, params?: Record<string, unknown>): ResultSet {
+  private async execAsync(sql: string, params?: Record<string, unknown>): Promise<ResultSet> {
     const args = params ? this.convertParams(params) : undefined
-    let result: ResultSet | undefined
-    let error: unknown
-
-    this.client
-      .execute({ sql, args: args as InArgs })
-      .then((r) => {
-        result = r
-      })
-      .catch((e) => {
-        error = e
-      })
-
-    if (error) throw error
-    if (!result) throw new Error('libsql: synchronous result not available')
-    return result
+    return this.client.execute({ sql, args: args as InArgs })
   }
 
   private convertParams(params: Record<string, unknown>): Record<string, unknown> {

@@ -23,7 +23,7 @@ export class SqliteDeckRepository implements DeckRepository {
   constructor(private readonly db: AnyDatabase) {}
 
   async create(deck: Deck): Promise<Deck> {
-    this.db
+    await this.db
       .query(
         `INSERT INTO decks (id, name, format, key_card_id, cards, created_at, updated_at, owner_id, is_public)
          VALUES ($id, $name, $format, $keyCardId, $cards, $createdAt, $updatedAt, $ownerId, $isPublic)`,
@@ -43,7 +43,7 @@ export class SqliteDeckRepository implements DeckRepository {
   }
 
   async findById(id: string): Promise<Deck | null> {
-    const row = this.db
+    const row = await this.db
       .query<DeckRow>('SELECT * FROM decks WHERE id = $id')
       .get({ $id: id })
     return row ? this.toDeck(row) : null
@@ -65,7 +65,7 @@ export class SqliteDeckRepository implements DeckRepository {
       params.$limit = opts.pageSize
       params.$offset = offset
     }
-    const rows = this.db.query<DeckRow>(sql).all(params)
+    const rows = await this.db.query<DeckRow>(sql).all(params)
     return rows.map((r) => this.toDeck(r))
   }
 
@@ -76,12 +76,12 @@ export class SqliteDeckRepository implements DeckRepository {
       sql += ' AND name LIKE $q'
       params.$q = `%${q}%`
     }
-    const row = this.db.query<{ cnt: number }>(sql).get(params) as { cnt: number }
+    const row = await this.db.query<{ cnt: number }>(sql).get(params) as { cnt: number }
     return row.cnt
   }
 
   async update(deck: Deck): Promise<Deck> {
-    this.db
+    await this.db
       .query(
         `UPDATE decks
          SET name = $name, format = $format, key_card_id = $keyCardId,
@@ -102,7 +102,7 @@ export class SqliteDeckRepository implements DeckRepository {
   }
 
   async delete(id: string): Promise<void> {
-    this.db.query('DELETE FROM decks WHERE id = $id').run({ $id: id })
+    await this.db.query('DELETE FROM decks WHERE id = $id').run({ $id: id })
   }
 
   private toDeck(row: DeckRow): Deck {

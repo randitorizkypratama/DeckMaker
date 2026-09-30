@@ -28,8 +28,8 @@ export interface Container {
   metaService: MetaService
 }
 
-export function createContainer(): Container {
-  const db = getDatabase(config.databasePath, config.tursoDatabaseUrl || undefined, config.tursoAuthToken || undefined)
+export async function createContainer(): Promise<Container> {
+  const db = await getDatabase(config.databasePath, config.tursoDatabaseUrl || undefined, config.tursoAuthToken || undefined)
   const client = new YgoProDeckClient()
   const cardRepository = new YgoProDeckRepository(client)
   const deckRepository = new SqliteDeckRepository(db)
