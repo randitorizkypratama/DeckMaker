@@ -41,9 +41,9 @@ services:
         sync: false
       # Set to the deployed web URL once it is known.
       - key: CORS_ORIGIN
-        sync: false
+        value: https://dueldex-web.onrender.com
       - key: PUBLIC_WEB_URL
-        sync: false
+        value: https://dueldex-web.onrender.com
       - key: JWT_SECRET
         sync: false
 
@@ -68,4 +68,4 @@ services:
         value: 10000
       # Set to the deployed API URL, e.g. https://dueldex-api.onrender.com
       - key: NUXT_PUBLIC_API_BASE_URL
-        sync: false
+        value: https://dueldex-api.onrender.com
