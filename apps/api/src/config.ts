@@ -24,6 +24,8 @@ export interface AppConfig {
   databasePath: string
   publicWebUrl: string
   jwtSecret: string
+  tursoDatabaseUrl: string
+  tursoAuthToken: string
 }
 
 export const config: AppConfig = {
@@ -40,4 +42,6 @@ export const config: AppConfig = {
   databasePath: readString('DATABASE_PATH', './data/dueldex.sqlite'),
   publicWebUrl: readString('PUBLIC_WEB_URL', 'http://localhost:3000'),
   jwtSecret: readString('JWT_SECRET', 'dev-secret-change-me'),
+  tursoDatabaseUrl: readString('TURSO_DATABASE_URL', ''),
+  tursoAuthToken: readString('TURSO_AUTH_TOKEN', ''),
 }

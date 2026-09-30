@@ -2,39 +2,99 @@ import { Database } from 'bun:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
+import { LibSqlDatabase } from './libsql-adapter.ts'
 
-let singleton: Database | null = null
+interface QueryLike<T> {
+  get(params?: Record<string, unknown>): T | null
+  all(params?: Record<string, unknown>): T[]
+  run(params?: Record<string, unknown>): { changes: number; lastInsertRowid: number | bigint }
+}
 
-export function getDatabase(databasePath: string): Database {
+/**
+ * Common interface satisfied by both BunSqliteWrapper and LibSqlDatabase.
+ * Every repository and service types their `db` field as AnyDatabase.
+ */
+export interface AnyDatabase {
+  exec(sql: string): void
+  query<T>(sql: string): QueryLike<T>
+  close(): void
+}
+
+/**
+ * Thin adapter around bun:sqlite's Database so it conforms to AnyDatabase.
+ * Only used for local dev and tests.
+ */
+class BunSqliteWrapper implements AnyDatabase {
+  constructor(private readonly raw: Database) {}
+
+  exec(sql: string): void {
+    this.raw.exec(sql)
+  }
+
+  query<T>(sql: string): QueryLike<T> {
+    const stmt = this.raw.query<T, any>(sql)
+    return {
+      get: (params?) => stmt.get(params ?? {}),
+      all: (params?) => stmt.all(params ?? {}),
+      run: (params?) => stmt.run(params ?? {}),
+    }
+  }
+
+  close(): void {
+    this.raw.close()
+  }
+}
+
+let singleton: AnyDatabase | null = null
+
+export function getDatabase(
+  databasePath: string,
+  tursoUrl?: string,
+  tursoToken?: string,
+): AnyDatabase {
   if (singleton) return singleton
+
+  if (tursoUrl) {
+    const db = new LibSqlDatabase({ url: tursoUrl, authToken: tursoToken })
+    migrate(db)
+    seedAdmin(db)
+    singleton = db
+    return db
+  }
+
   if (databasePath !== ':memory:') {
     mkdirSync(dirname(databasePath), { recursive: true })
   }
-  const db = new Database(databasePath, { create: true })
-  db.exec('PRAGMA journal_mode = WAL;')
-  db.exec('PRAGMA foreign_keys = ON;')
+  const raw = new Database(databasePath, { create: true })
+  raw.exec('PRAGMA journal_mode = WAL;')
+  raw.exec('PRAGMA foreign_keys = ON;')
+  const db = new BunSqliteWrapper(raw)
   migrate(db)
   seedAdmin(db)
   singleton = db
   return db
 }
 
-// For tests: create fresh in-memory db without singleton
+/**
+ * Returns a raw bun:sqlite Database for tests (in-memory, fast, synchronous).
+ * This is NOT wrapped — it goes directly to createTestDatabase callers.
+ */
 export function createTestDatabase(): Database {
   const db = new Database(':memory:', { create: true })
   db.exec('PRAGMA foreign_keys = ON;')
-  migrate(db)
+  const wrapper = new BunSqliteWrapper(db)
+  migrate(wrapper)
   return db
 }
 
 export function resetDatabaseSingleton(): void {
   if (singleton) {
-    try { singleton.close() } catch {}
+    singleton.close()
     singleton = null
   }
 }
 
-function migrate(db: Database): void {
+function migrate(db: AnyDatabase): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -54,9 +114,9 @@ function migrate(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   `)
-  // Add new columns if DB was created before these fields existed
-  const userCols = db.query("SELECT name FROM pragma_table_info('users')").all() as { name: string }[]
-  const has = (n: string) => userCols.some(c => c.name === n)
+
+  const userCols = db.query<{ name: string }>("SELECT name FROM pragma_table_info('users')").all()
+  const has = (n: string) => userCols.some((c) => c.name === n)
   if (!has('display_name')) db.exec(`ALTER TABLE users ADD COLUMN display_name TEXT;`)
   if (!has('age')) db.exec(`ALTER TABLE users ADD COLUMN age INTEGER;`)
   if (!has('gender')) db.exec(`ALTER TABLE users ADD COLUMN gender TEXT;`)
@@ -77,16 +137,15 @@ function migrate(db: Database): void {
     );
   `)
 
-  // Add owner_id column if missing (for existing DBs)
-  const deckCols = db.query("SELECT name FROM pragma_table_info('decks')").all() as { name: string }[]
-  const hasOwnerId = deckCols.some(c => c.name === 'owner_id')
+  const deckCols = db.query<{ name: string }>("SELECT name FROM pragma_table_info('decks')").all()
+  const hasOwnerId = deckCols.some((c) => c.name === 'owner_id')
   if (!hasOwnerId) {
     db.exec(`ALTER TABLE decks ADD COLUMN owner_id TEXT REFERENCES users(id) ON DELETE SET NULL;`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_decks_owner ON decks(owner_id);`)
   } else {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_decks_owner ON decks(owner_id);`)
   }
-  const hasIsPublic = deckCols.some(c => c.name === 'is_public')
+  const hasIsPublic = deckCols.some((c) => c.name === 'is_public')
   if (!hasIsPublic) {
     db.exec(`ALTER TABLE decks ADD COLUMN is_public INTEGER DEFAULT 1;`)
   }
@@ -101,9 +160,7 @@ function migrate(db: Database): void {
     );
   `)
 
-  // Favorites: migrate from (owner, card_id) to (user_id, card_id) if needed
-  // Check existing favorites schema
-  const favTableExists = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='favorites'").get() as unknown
+  const favTableExists = db.query<unknown>("SELECT name FROM sqlite_master WHERE type='table' AND name='favorites'").get()
   if (!favTableExists) {
     db.exec(`
       CREATE TABLE favorites (
@@ -115,11 +172,10 @@ function migrate(db: Database): void {
       CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);
     `)
   } else {
-    const favCols = db.query("SELECT name FROM pragma_table_info('favorites')").all() as { name: string }[]
-    const hasUserId = favCols.some(c => c.name === 'user_id')
-    const hasOwner = favCols.some(c => c.name === 'owner')
+    const favCols = db.query<{ name: string }>("SELECT name FROM pragma_table_info('favorites')").all()
+    const hasUserId = favCols.some((c) => c.name === 'user_id')
+    const hasOwner = favCols.some((c) => c.name === 'owner')
     if (!hasUserId && hasOwner) {
-      // Need to migrate: create new table, copy where possible, drop old
       db.exec(`
         CREATE TABLE IF NOT EXISTS favorites_new (
           user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -128,15 +184,12 @@ function migrate(db: Database): void {
           PRIMARY KEY (user_id, card_id)
         );
       `)
-      // Keep anon favorites that don't map to a user? Drop them for now - or try to keep legacy table as favorites_legacy
-      // Instead, rename old to legacy and create new empty favorites for logged-in users
       db.exec(`ALTER TABLE favorites RENAME TO favorites_legacy;`)
       db.exec(`ALTER TABLE favorites_new RENAME TO favorites;`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);`)
     } else if (hasUserId) {
       db.exec(`CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorites(user_id);`)
     } else {
-      // unexpected schema, ensure new schema
       db.exec(`
         CREATE TABLE IF NOT EXISTS favorites (
           user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -149,8 +202,8 @@ function migrate(db: Database): void {
   }
 }
 
-function seedAdmin(db: Database): void {
-  const existing = db.query('SELECT 1 FROM users WHERE username = ?').get('admin')
+function seedAdmin(db: AnyDatabase): void {
+  const existing = db.query('SELECT 1 FROM users WHERE username = $username').get({ $username: 'admin' })
   if (existing) return
 
   const id = randomUUID().replace(/-/g, '').slice(0, 16)
@@ -159,8 +212,18 @@ function seedAdmin(db: Database): void {
 
   db.query(`
     INSERT INTO users (id, username, email, password_hash, display_name, role, is_banned, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, 'admin', 'admin@dueldex.com', passwordHash, 'Admin', 'admin', 0, now, now)
+    VALUES ($id, $username, $email, $passwordHash, $displayName, $role, $isBanned, $createdAt, $updatedAt)
+  `).run({
+    $id: id,
+    $username: 'admin',
+    $email: 'admin@dueldex.com',
+    $passwordHash: passwordHash,
+    $displayName: 'Admin',
+    $role: 'admin',
+    $isBanned: 0,
+    $createdAt: now,
+    $updatedAt: now,
+  })
 
   console.log('[seed] Admin user created — login: admin / admin123')
 }

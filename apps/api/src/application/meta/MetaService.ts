@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite'
+import type { AnyDatabase } from '../../infrastructure/db/database.ts'
 import type { CardRepository } from '../../domain/card/CardRepository.ts'
 
 interface DeckRow {
@@ -57,10 +57,10 @@ interface CardRow {
 }
 
 export class MetaService {
-  constructor(private readonly db: Database, private readonly cards: CardRepository) {}
+  constructor(private readonly db: AnyDatabase, private readonly cards: CardRepository) {}
 
   async getOverview(): Promise<MetaOverview> {
-    const rows = this.db.query<DeckRow, []>(
+    const rows = this.db.query<DeckRow>(
       'SELECT id, name, format, cards, key_card_id, owner_id, is_public, created_at FROM decks WHERE is_public = 1'
     ).all()
 
@@ -120,7 +120,7 @@ export class MetaService {
       .map(([cardId, data]) => ({ cardId, count: data.count, totalCopies: data.totalCopies }))
 
     const ownerNames = new Map<string, string>()
-    const userRows = this.db.query<{ id: string; username: string }, []>(
+    const userRows = this.db.query<{ id: string; username: string }>(
       'SELECT id, username FROM users'
     ).all()
     for (const u of userRows) ownerNames.set(u.id, u.username)
@@ -158,7 +158,7 @@ export class MetaService {
   }
 
   async getTopCards(limit = 30): Promise<CardPopularity[]> {
-    const rows = this.db.query<DeckRow, []>(
+    const rows = this.db.query<DeckRow>(
       'SELECT cards FROM decks WHERE is_public = 1'
     ).all()
 
@@ -187,9 +187,9 @@ export class MetaService {
   }
 
   async getDeckStats(): Promise<{ totalDecks: number; publicDecks: number; formatBreakdown: Record<string, number> }> {
-    const total = (this.db.query<{ cnt: number }, []>('SELECT COUNT(*) as cnt FROM decks').get() as { cnt: number }).cnt
-    const pub = (this.db.query<{ cnt: number }, []>('SELECT COUNT(*) as cnt FROM decks WHERE is_public = 1').get() as { cnt: number }).cnt
-    const rows = this.db.query<{ format: string; cnt: number }, []>(
+    const total = (this.db.query<{ cnt: number }>('SELECT COUNT(*) as cnt FROM decks').get() as { cnt: number }).cnt
+    const pub = (this.db.query<{ cnt: number }>('SELECT COUNT(*) as cnt FROM decks WHERE is_public = 1').get() as { cnt: number }).cnt
+    const rows = this.db.query<{ format: string; cnt: number }>(
       'SELECT format, COUNT(*) as cnt FROM decks WHERE is_public = 1 GROUP BY format'
     ).all()
     const formatBreakdown: Record<string, number> = {}

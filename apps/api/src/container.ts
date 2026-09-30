@@ -29,7 +29,7 @@ export interface Container {
 }
 
 export function createContainer(): Container {
-  const db = getDatabase(config.databasePath)
+  const db = getDatabase(config.databasePath, config.tursoDatabaseUrl || undefined, config.tursoAuthToken || undefined)
   const client = new YgoProDeckClient()
   const cardRepository = new YgoProDeckRepository(client)
   const deckRepository = new SqliteDeckRepository(db)

@@ -4,9 +4,11 @@
 # Bun can resolve the workspace packages (packages/shared), then run from their
 # own app directory.
 #
-# NOTE: the free plan has an ephemeral filesystem, so the SQLite database is
-# reset on every deploy and restart. Attach a disk (or move to Postgres) if
-# shared decks must persist - see README "Deployment".
+# DATABASE: Uses Turso (libSQL) for persistent, serverless SQLite.
+# 1. Create a Turso database: turso db create dueldex
+# 2. Get the URL: turso db show dueldex --url
+# 3. Create a token: turso db tokens create dueldex
+# 4. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in Render env vars.
 
 services:
   # ---------------------------------------------------------------- API
@@ -33,12 +35,16 @@ services:
         value: 3600000
       - key: UPSTREAM_TIMEOUT_MS
         value: 12000
-      - key: DATABASE_PATH
-        value: /tmp/dueldex.sqlite
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
       # Set to the deployed web URL once it is known.
       - key: CORS_ORIGIN
         sync: false
       - key: PUBLIC_WEB_URL
+        sync: false
+      - key: JWT_SECRET
         sync: false
 
   # ---------------------------------------------------------------- Web

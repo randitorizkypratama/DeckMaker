@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite'
+import type { AnyDatabase } from '../db/database.ts'
 import type { Deck, DeckCard, DeckFormat } from '@dueldex/shared'
 import type { DeckRepository } from '../../domain/deck/DeckRepository.ts'
 
@@ -20,7 +20,7 @@ interface DeckRow {
  * share the same file and WAL journal.
  */
 export class SqliteDeckRepository implements DeckRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: AnyDatabase) {}
 
   async create(deck: Deck): Promise<Deck> {
     this.db
@@ -44,7 +44,7 @@ export class SqliteDeckRepository implements DeckRepository {
 
   async findById(id: string): Promise<Deck | null> {
     const row = this.db
-      .query<DeckRow, { $id: string }>('SELECT * FROM decks WHERE id = $id')
+      .query<DeckRow>('SELECT * FROM decks WHERE id = $id')
       .get({ $id: id })
     return row ? this.toDeck(row) : null
   }
@@ -65,7 +65,7 @@ export class SqliteDeckRepository implements DeckRepository {
       params.$limit = opts.pageSize
       params.$offset = offset
     }
-    const rows = this.db.query<DeckRow, any>(sql).all(params)
+    const rows = this.db.query<DeckRow>(sql).all(params)
     return rows.map((r) => this.toDeck(r))
   }
 
@@ -76,7 +76,7 @@ export class SqliteDeckRepository implements DeckRepository {
       sql += ' AND name LIKE $q'
       params.$q = `%${q}%`
     }
-    const row = this.db.query<{ cnt: number }, any>(sql).get(params) as { cnt: number }
+    const row = this.db.query<{ cnt: number }>(sql).get(params) as { cnt: number }
     return row.cnt
   }
 

@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite'
+import type { AnyDatabase } from '../db/database.ts'
 import type { Gender, Role, User } from '../../domain/user/User.ts'
 import type { UserRepository } from '../../domain/user/UserRepository.ts'
 
@@ -19,31 +19,31 @@ interface UserRow {
 }
 
 export class SqliteUserRepository implements UserRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: AnyDatabase) {}
 
   async findById(id: string): Promise<User | null> {
     const row = this.db
-      .query<UserRow, { $id: string }>('SELECT * FROM users WHERE id = $id')
+      .query<UserRow>('SELECT * FROM users WHERE id = $id')
       .get({ $id: id })
     return row ? this.toUser(row) : null
   }
 
   async findByUsername(username: string): Promise<User | null> {
     const row = this.db
-      .query<UserRow, { $username: string }>('SELECT * FROM users WHERE username = $username')
+      .query<UserRow>('SELECT * FROM users WHERE username = $username')
       .get({ $username: username })
     return row ? this.toUser(row) : null
   }
 
   async findByEmail(email: string): Promise<User | null> {
     const row = this.db
-      .query<UserRow, { $email: string }>('SELECT * FROM users WHERE email = $email')
+      .query<UserRow>('SELECT * FROM users WHERE email = $email')
       .get({ $email: email })
     return row ? this.toUser(row) : null
   }
 
   async count(): Promise<number> {
-    const row = this.db.query<{ cnt: number }, []>('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }
+    const row = this.db.query<{ cnt: number }>('SELECT COUNT(*) as cnt FROM users').get() as { cnt: number }
     return row.cnt
   }
 
@@ -60,7 +60,7 @@ export class SqliteUserRepository implements UserRepository {
       params.$limit = opts.pageSize
       params.$offset = (opts.page - 1) * opts.pageSize
     }
-    const rows = this.db.query<UserRow, any>(sql).all(params)
+    const rows = this.db.query<UserRow>(sql).all(params)
     return rows.map(r => this.toUser(r))
   }
 

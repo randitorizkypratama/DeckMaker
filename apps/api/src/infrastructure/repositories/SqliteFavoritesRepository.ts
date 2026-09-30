@@ -1,4 +1,4 @@
-import type { Database } from 'bun:sqlite'
+import type { AnyDatabase } from '../db/database.ts'
 import type { FavoritesRepository } from '../../domain/card/FavoritesRepository.ts'
 
 /**
@@ -6,11 +6,11 @@ import type { FavoritesRepository } from '../../domain/card/FavoritesRepository.
  * Schema: favorites(user_id, card_id)
  */
 export class SqliteFavoritesRepository implements FavoritesRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: AnyDatabase) {}
 
   async list(owner: string): Promise<number[]> {
     const rows = this.db
-      .query<{ card_id: number }, { $userId: string }>(
+      .query<{ card_id: number }>(
         'SELECT card_id FROM favorites WHERE user_id = $userId ORDER BY created_at DESC',
       )
       .all({ $userId: owner })
