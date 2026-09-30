@@ -131,17 +131,19 @@ onMounted(loadDecks)
     <template v-else>
       <div class="mb-4 flex flex-col gap-3 sm:flex-row">
         <UInput v-model="q" placeholder="Search decks by name..." class="flex-1" @keydown.enter="onSearch" />
-        <UButton color="neutral" variant="outline" icon="i-lucide-search" @click="onSearch">Search</UButton>
-        <USelectMenu
-          :model-value="sort"
-          :items="[{label:'Updated', value:'updated'},{label:'Name', value:'name'}]"
-          value-key="value"
-          class="w-36"
-          @update:model-value="onSortChange(String($event))"
-        />
-        <UButton color="neutral" variant="ghost" :icon="order==='desc' ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up'" @click="order = order==='desc' ? 'asc' : 'desc'; loadDecks()">
-          {{ order === 'desc' ? 'Desc' : 'Asc' }}
-        </UButton>
+        <div class="flex gap-2">
+          <UButton color="neutral" variant="outline" icon="i-lucide-search" @click="onSearch">Search</UButton>
+          <USelectMenu
+            :model-value="sort"
+            :items="[{label:'Updated', value:'updated'},{label:'Name', value:'name'}]"
+            value-key="value"
+            class="w-32"
+            @update:model-value="onSortChange(String($event))"
+          />
+          <UButton color="neutral" variant="ghost" :icon="order==='desc' ? 'i-lucide-arrow-down' : 'i-lucide-arrow-up'" @click="order = order==='desc' ? 'asc' : 'desc'; loadDecks()">
+            {{ order === 'desc' ? 'Desc' : 'Asc' }}
+          </UButton>
+        </div>
       </div>
 
       <CommonLoadingState v-if="pending" label="Loading your decks..." />
@@ -169,13 +171,13 @@ onMounted(loadDecks)
             <p class="text-xs text-neutral-500">{{ deck.format }} • {{ deck.stats.mainCount }} main / {{ deck.stats.extraCount }} extra</p>
             <p class="mt-1 flex items-center gap-2 text-xs text-neutral-600">
               <span>{{ new Date(deck.updatedAt).toLocaleString() }}</span>
-              <span :class="deck.isPublic ? 'text-emerald-400' : 'text-neutral-500'" class="rounded bg-ink-800 px-1.5 py-0.5 text-[10px]">{{ deck.isPublic ? 'Public' : 'Private' }}</span>
+              <span :class="deck.isPublic ? 'text-emerald-400' : 'text-neutral-500'" class="rounded bg-ink-800 px-1.5 py-0.5 text-xs">{{ deck.isPublic ? 'Public' : 'Private' }}</span>
             </p>
             <div class="mt-3 flex flex-wrap gap-2">
-              <UButton :to="`/deck/${deck.id}`" size="xs" color="neutral" variant="outline">View</UButton>
-              <UButton :to="`/deck/new?editId=${deck.id}`" size="xs" color="neutral" variant="outline" icon="i-lucide-pencil">Edit</UButton>
-              <UButton size="xs" color="neutral" variant="ghost" :icon="deck.isPublic ? 'i-lucide-eye-off' : 'i-lucide-eye'" @click="toggleVisibility(deck)">{{ deck.isPublic ? 'Private' : 'Public' }}</UButton>
-              <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-trash-2" @click="deleteDeck(deck.id)">Delete</UButton>
+              <UButton :to="`/deck/${deck.id}`" size="sm" color="neutral" variant="outline">View</UButton>
+              <UButton :to="`/deck/new?editId=${deck.id}`" size="sm" color="neutral" variant="outline" icon="i-lucide-pencil">Edit</UButton>
+              <UButton size="sm" color="neutral" variant="ghost" :icon="deck.isPublic ? 'i-lucide-eye-off' : 'i-lucide-eye'" @click="toggleVisibility(deck)">{{ deck.isPublic ? 'Private' : 'Public' }}</UButton>
+              <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-trash-2" @click="deleteDeck(deck.id)">Delete</UButton>
             </div>
           </div>
         </div>

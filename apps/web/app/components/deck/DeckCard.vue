@@ -62,7 +62,7 @@ const banlistBadge = computed(() => {
         icon="i-lucide-minus"
         color="neutral"
         variant="ghost"
-        size="xs"
+        size="sm"
         :aria-label="`Remove one copy of ${card.name}`"
         @click="emit('decrease')"
       />
@@ -73,7 +73,7 @@ const banlistBadge = computed(() => {
         icon="i-lucide-plus"
         color="neutral"
         variant="ghost"
-        size="xs"
+        size="sm"
         :disabled="atLimit"
         :aria-label="`Add one copy of ${card.name}`"
         @click="emit('increase')"
@@ -82,7 +82,7 @@ const banlistBadge = computed(() => {
         icon="i-lucide-x"
         color="neutral"
         variant="ghost"
-        size="xs"
+        size="sm"
         :aria-label="`Remove ${card.name} from deck`"
         @click="emit('remove')"
       />

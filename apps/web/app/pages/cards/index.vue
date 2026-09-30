@@ -171,10 +171,13 @@ onMounted(async () => {
             />
             <button
               v-if="filters.search"
-              class="absolute inset-y-0 right-0 flex items-center pr-4 text-neutral-500 hover:text-neutral-300"
+              class="absolute inset-y-0 right-0 flex items-center pr-3"
+              aria-label="Clear search"
               @click="onSearch('')"
             >
-              <UIcon name="i-lucide-x" class="size-4" />
+              <span class="rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-ink-800 hover:text-neutral-300">
+                <UIcon name="i-lucide-x" class="size-4" />
+              </span>
             </button>
           </div>
         </div>
@@ -216,7 +219,7 @@ onMounted(async () => {
               <UIcon name="i-lucide-arrow-up-down" class="size-3.5 text-neutral-500" />
               <select
                 :value="filters.sort"
-                class="bg-transparent py-1.5 pr-1 text-xs text-neutral-300 focus:outline-none"
+                class="bg-transparent py-2 pr-1 text-xs text-neutral-300 focus:outline-none"
                 @change="onSortChange(($event.target as HTMLSelectElement).value)"
               >
                 <option value="name">Name</option>
@@ -226,7 +229,7 @@ onMounted(async () => {
               </select>
             </div>
             <button
-              class="flex items-center gap-0.5 border-l border-ink-700 px-2 py-1.5 text-xs transition-colors hover:bg-ink-800"
+              class="flex items-center gap-0.5 border-l border-ink-700 px-2.5 py-2 text-xs transition-colors hover:bg-ink-800"
               :class="filters.sortOrder === 'asc' ? 'text-primary-400' : 'text-neutral-400'"
               @click="toggleSortOrder"
             >
@@ -243,7 +246,7 @@ onMounted(async () => {
         <button
           v-for="chip in activeFilterChips"
           :key="chip.key"
-          class="inline-flex items-center gap-1 rounded-full border border-ink-700 bg-ink-800 px-2.5 py-1 text-xs text-neutral-300 transition-colors hover:border-red-800 hover:bg-red-950/30 hover:text-red-400"
+          class="inline-flex items-center gap-1 rounded-full border border-ink-700 bg-ink-800 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-red-800 hover:bg-red-950/30 hover:text-red-400"
           @click="removeFilterChip(chip.key)"
         >
           {{ chip.label }}

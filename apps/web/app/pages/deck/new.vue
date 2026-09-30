@@ -210,7 +210,7 @@ const mainProgress = computed(() => {
           </div>
 
           <!-- Right: Actions -->
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-trash-2" @click="openClearDialog">Clear</UButton>
             <UButton v-if="deckView.savedDeckId" color="neutral" variant="outline" size="sm" icon="i-lucide-share-2" @click="onShare">Share</UButton>
             <UButton color="primary" size="sm" icon="i-lucide-save" :loading="deckView.saving" :disabled="deckView.entries.length === 0" @click="onSave">
@@ -282,10 +282,10 @@ const mainProgress = computed(() => {
     <!-- Mobile panel switch -->
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:hidden">
       <div class="mb-4 flex gap-2">
-        <button :class="['flex-1 rounded-lg py-2 text-sm font-medium transition-all', mobilePanel === 'search' ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20' : 'bg-ink-800 text-neutral-400']" @click="mobilePanel = 'search'">
+        <button :class="['flex-1 rounded-lg py-2.5 text-sm font-medium transition-all', mobilePanel === 'search' ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20' : 'bg-ink-800 text-neutral-400']" @click="mobilePanel = 'search'">
           Search Cards
         </button>
-        <button :class="['flex-1 rounded-lg py-2 text-sm font-medium transition-all', mobilePanel === 'deck' ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20' : 'bg-ink-800 text-neutral-400']" @click="mobilePanel = 'deck'">
+        <button :class="['flex-1 rounded-lg py-2.5 text-sm font-medium transition-all', mobilePanel === 'deck' ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20' : 'bg-ink-800 text-neutral-400']" @click="mobilePanel = 'deck'">
           Deck ({{ deckView.counts.main + deckView.counts.extra }})
         </button>
       </div>

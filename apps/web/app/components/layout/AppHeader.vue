@@ -93,7 +93,6 @@ function toggleMobileMenu(): void {
           class="md:hidden"
           color="neutral"
           variant="ghost"
-          size="sm"
           :icon="mobileOpen ? 'i-lucide-x' : 'i-lucide-menu'"
           :aria-label="mobileOpen ? 'Close menu' : 'Open menu'"
           :aria-expanded="mobileOpen"
@@ -111,7 +110,7 @@ function toggleMobileMenu(): void {
         v-for="link in links"
         :key="link.to"
         :to="link.to"
-        class="block rounded-md px-3 py-2 text-sm"
+        class="block rounded-md px-3 py-2.5 text-sm"
         :class="
           isActive(link.to)
             ? 'bg-ink-800 text-neutral-100'

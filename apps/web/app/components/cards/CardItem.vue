@@ -111,7 +111,7 @@ const banlistBadge = computed(() => {
       </p>
 
       <!-- Actions -->
-      <div class="mt-auto flex items-center gap-1.5 pt-2">
+      <div class="mt-auto flex items-center gap-2 pt-2">
         <CardsFavoriteButton
           :active="favorite"
           @toggle="emit('toggleFavorite', card.id)"
@@ -120,13 +120,13 @@ const banlistBadge = computed(() => {
           icon="i-lucide-plus"
           color="primary"
           variant="ghost"
-          size="xs"
+          size="sm"
           :aria-label="`Add ${card.name} to deck`"
           @click="emit('add', card)"
         />
         <NuxtLink
           :to="`/cards/${card.id}`"
-          class="ml-auto text-[10px] text-neutral-500 transition-colors hover:text-primary-400"
+          class="ml-auto rounded-md px-2 py-1 text-xs text-neutral-500 transition-colors hover:text-primary-400"
         >
           Details
         </NuxtLink>
