@@ -33,6 +33,7 @@ body {
   color: #e6e8ec;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 /* Card artwork keeps the official 59:86 ratio to avoid layout shift. */

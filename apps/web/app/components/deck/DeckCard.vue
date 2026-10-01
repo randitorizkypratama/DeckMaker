@@ -57,23 +57,23 @@ const banlistBadge = computed(() => {
       <p class="truncate text-xs text-neutral-500">{{ card.type }}</p>
     </div>
 
-    <div v-if="!readonly" class="flex shrink-0 items-center gap-1">
+    <div v-if="!readonly" class="flex shrink-0 items-center gap-0.5 sm:gap-1">
       <UButton
         icon="i-lucide-minus"
         color="neutral"
         variant="ghost"
-        size="sm"
+        size="xs"
         :aria-label="`Remove one copy of ${card.name}`"
         @click="emit('decrease')"
       />
-      <span class="w-6 text-center text-sm font-medium tabular-nums text-neutral-200">
+      <span class="w-5 text-center text-xs font-medium tabular-nums text-neutral-200 sm:w-6 sm:text-sm">
         {{ quantity }}
       </span>
       <UButton
         icon="i-lucide-plus"
         color="neutral"
         variant="ghost"
-        size="sm"
+        size="xs"
         :disabled="atLimit"
         :aria-label="`Add one copy of ${card.name}`"
         @click="emit('increase')"
@@ -82,7 +82,7 @@ const banlistBadge = computed(() => {
         icon="i-lucide-x"
         color="neutral"
         variant="ghost"
-        size="sm"
+        size="xs"
         :aria-label="`Remove ${card.name} from deck`"
         @click="emit('remove')"
       />

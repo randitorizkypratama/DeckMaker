@@ -240,7 +240,7 @@ const mainProgress = computed(() => {
             <span class="font-semibold text-purple-400">{{ deckView.counts.side }}</span>
             <span class="text-neutral-600">/{{ deckView.rules.sideDeckMax }}</span>
           </div>
-          <div class="flex items-center gap-3 border-l border-ink-800 pl-4">
+          <div class="hidden items-center gap-3 border-l border-ink-800 pl-4 sm:flex">
             <span class="text-xs text-neutral-500">
               <span class="text-amber-400">{{ deckView.breakdown.monster }}</span> M
               <span class="mx-1 text-neutral-600">/</span>

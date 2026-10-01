@@ -228,10 +228,10 @@ onMounted(() => { if (isAdmin.value) loadUsers() })
     <UAlert v-else-if="!isAdmin" color="error" variant="subtle" icon="i-lucide-shield-x" title="Access denied" description="You need admin privileges to access this page." />
 
     <template v-else>
-      <div class="mb-6 flex gap-1 rounded-xl bg-ink-900 p-1">
+      <div class="mb-6 flex gap-1 overflow-x-auto rounded-xl bg-ink-900 p-1">
         <button
           v-for="t in tabs" :key="t.key"
-          class="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all"
+          class="flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition-all sm:px-4 sm:text-sm"
           :class="tab === t.key ? 'bg-primary-500/15 text-primary-400 shadow-sm' : 'text-neutral-400 hover:text-neutral-200 hover:bg-ink-800'"
           @click="tab = t.key as any"
         >
@@ -243,7 +243,7 @@ onMounted(() => { if (isAdmin.value) loadUsers() })
       <!-- USERS -->
       <div v-if="tab === 'users'">
         <div class="mb-4 flex flex-wrap items-center gap-3">
-          <UInput v-model="usersQ" placeholder="Search username or email..." icon="i-lucide-search" class="w-64" @keydown.enter="loadUsers" />
+          <UInput v-model="usersQ" placeholder="Search username or email..." icon="i-lucide-search" class="w-full sm:w-64" @keydown.enter="loadUsers" />
           <select v-model="usersRole" class="rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-neutral-200 transition-colors focus:border-primary-500 focus:outline-none">
             <option value="all">All Roles</option>
             <option value="admin">Admin</option>
@@ -259,8 +259,8 @@ onMounted(() => { if (isAdmin.value) loadUsers() })
 
         <CommonLoadingState v-if="usersPending" label="Loading users..." />
         <div v-else-if="filteredUsers.length === 0" class="rounded-xl border border-dashed border-ink-700 py-12 text-center text-sm text-neutral-500">No users found.</div>
-        <div v-else class="overflow-hidden rounded-xl border border-ink-800 bg-ink-900">
-          <table class="w-full text-left text-sm">
+        <div v-else class="overflow-x-auto rounded-xl border border-ink-800 bg-ink-900">
+          <table class="w-full min-w-[540px] text-left text-sm">
             <thead class="border-b border-ink-800 bg-ink-850 text-xs uppercase tracking-wider text-neutral-500">
               <tr>
                 <th class="px-4 py-3">User</th>
@@ -312,7 +312,7 @@ onMounted(() => { if (isAdmin.value) loadUsers() })
       <!-- DECKS -->
       <div v-if="tab === 'decks'">
         <div class="mb-4 flex flex-wrap items-center gap-3">
-          <UInput v-model="decksQ" placeholder="Search decks..." icon="i-lucide-search" class="w-64" @keydown.enter="loadDecks" />
+          <UInput v-model="decksQ" placeholder="Search decks..." icon="i-lucide-search" class="w-full sm:w-64" @keydown.enter="loadDecks" />
           <select v-model="decksFormat" class="rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-neutral-200 transition-colors focus:border-primary-500 focus:outline-none">
             <option value="all">All Formats</option>
             <option value="yu-gi-oh">Yu-Gi-Oh!</option>
@@ -347,7 +347,7 @@ onMounted(() => { if (isAdmin.value) loadUsers() })
         <div class="mb-4 space-y-3">
           <div class="flex flex-wrap items-center gap-3">
             <h2 class="text-lg font-medium text-neutral-100">Official TCG Banlist</h2>
-            <UInput v-model="banlistSearch" placeholder="Search card name..." icon="i-lucide-search" class="w-64" />
+            <UInput v-model="banlistSearch" placeholder="Search card name..." icon="i-lucide-search" class="w-full sm:w-64" />
             <select v-model="banlistSort" class="rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-neutral-200 transition-colors focus:border-primary-500 focus:outline-none">
               <option value="name">Sort by Name</option>
               <option value="status">Sort by Status</option>
